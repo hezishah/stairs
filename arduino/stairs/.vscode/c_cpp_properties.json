@@ -1,0 +1,43 @@
+{
+    "configurations": [
+        {
+            "name": "Mac",
+            "includePath": [
+                "/Users/hezishahmoon/Library/Arduino15/packages/arduino/hardware/avr/1.6.21/cores/arduino",
+                "/Applications/Arduino.app/Contents/Java/hardware/arduino/avr/cores/arduino"
+            ],
+            "browse": {
+                "limitSymbolsToIncludedHeaders": false,
+                "path": [
+                    "/Users/hezishahmoon/Library/Arduino15/packages/arduino/hardware/avr/1.6.21/cores/arduino",
+                    "/Applications/Arduino.app/Contents/Java/hardware/arduino/avr/cores/arduino"
+                ]
+            },
+            "macFrameworkPath": [
+                "/System/Library/Frameworks",
+                "/Library/Frameworks"
+            ],
+            "intelliSenseMode": "clang-x64",
+            "compilerPath": "/usr/bin/clang",
+            "cStandard": "c11",
+            "cppStandard": "c++17"
+        },
+        {
+            "name": "Win32",
+            "includePath": [
+                "C:\\Users\\Software\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.6.21\\cores\\arduino",
+                "C:\\Users\\Software\\AppData\\Local\\Arduino15\\packages\\emoro\\hardware\\avr\\3.2.2\\cores\\emoro_core",
+                "C:\\Program Files (x86)\\Arduino\\hardware\\arduino\\avr\\cores\\arduino"
+            ],
+            "browse": {
+                "limitSymbolsToIncludedHeaders": false,
+                "path": [
+                    "C:\\Users\\Software\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.6.21\\cores\\arduino",
+                    "C:\\Users\\Software\\AppData\\Local\\Arduino15\\packages\\emoro\\hardware\\avr\\3.2.2\\cores\\emoro_core",
+                    "C:\\Program Files (x86)\\Arduino\\hardware\\arduino\\avr\\cores\\arduino"
+                ]
+            }
+        }
+    ],
+    "version": 4
+}
