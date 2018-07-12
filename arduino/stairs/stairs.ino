@@ -31,8 +31,12 @@ struct MySettings : public midi::DefaultSettings
 {
   static const long BaudRate = 31250;
 };
+#if defined(__AVR_ATmega1280__) || defined(__AVR_ATmega2560__)
+//Code in here will only be compiled if an Arduino Mega is used.
 MIDI_CREATE_CUSTOM_INSTANCE(HardwareSerial, Serial1, MIDI, MySettings);
-
+#else
+MIDI_CREATE_CUSTOM_INSTANCE(HardwareSerial, Serial, MIDI, MySettings);
+#endif
 const int velocity = 90; //Max Velocity (range is 0-127)
 const int channel = 1; //MIDI Channel 1 (out of 16)
 
@@ -40,26 +44,78 @@ const int channel = 1; //MIDI Channel 1 (out of 16)
 void setup() {
   // initialize digital pin LED_BUILTIN as an output.
   pinMode(LED_BUILTIN, OUTPUT);
+#if defined(__AVR_ATmega1280__) || defined(__AVR_ATmega2560__)
+//Code in here will only be compiled if an Arduino Mega is used.
   Serial.begin(2000000);
+  /* This port will receive sensor data from the small arduino board */
+  Serial2.begin(31250);
+#endif
   MIDI.begin();
 }
 
-int currentNote=52, previousNode=0;
+int currentNote=52, previousNote=0;
+char midiMessage[10];
+int midiInData1Expected = false;
+int midiInData2Expected = false;
+
 // the loop function runs over and over again forever
 void loop() {
   digitalWrite(LED_BUILTIN, HIGH);   // turn the LED on (HIGH is the voltage level)
   delay(100);                       // wait for a second
   digitalWrite(LED_BUILTIN, LOW);    // turn the LED off by making the voltage LOW
   delay(100);                       // wait for a second
-  Serial.write('.');
+#if defined(__AVR_ATmega1280__) || defined(__AVR_ATmega2560__)
+//Code in here will only be compiled if an Arduino Mega is used.
+#endif
   if (currentNote >= 93)
   {
     currentNote = 52;
   }
   currentNote++;
   MIDI.sendNoteOn(currentNote, velocity, channel);  // Turn the note on.
-  MIDI.sendNoteOff(previousNode, 0, channel);  // Turn the note on.
-  previousNode = currentNote;
+  MIDI.sendNoteOff(previousNote, 0, channel);  // Turn the note on.
+
+#if defined(__AVR_ATmega1280__) || defined(__AVR_ATmega2560__)
+//Code in here will only be compiled if an Arduino Mega is used.
+  while (Serial2.available())  
+  {
+    unsigned char c = Serial2.read();  //gets one byte from serial buffer
+    if(c & 0x80)
+    {
+      midiMessage[0] = c;
+      if((c & 0xF0) != 0xF0)
+      {
+        midiInData1Expected = true;
+      }
+      else
+      {
+        //Serial1.write(midiMessage,1);
+      }
+    }
+    else
+    {
+      if(midiInData1Expected)
+      {
+        midiMessage[1]=c;
+        //MIDI.sendNoteOn(currentNote, velocity, channel);  // Turn the note on.
+        //MIDI.sendNoteOff(previousNote, 0, channel);  // Turn the note on.
+        midiInData1Expected = false;
+        midiInData2Expected = true;
+      }
+      else
+      {
+        if(midiInData2Expected)
+        {
+          midiMessage[2]=c;
+          Serial1.write(midiMessage,3);
+          midiInData2Expected = false;
+        }
+      }
+    }
+  }
+#endif
+  previousNote = currentNote;
+  //Serial.println('.');
 }
 
 
