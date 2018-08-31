@@ -50,7 +50,7 @@ const int sensorNewAddress[] = {
   41
 };
 
-#define NUM_OF_SENSORS 3 /* MAX for now is 11 */
+#define NUM_OF_SENSORS 6 /* MAX for now is 11 */
 VL53L0X Sensors[NUM_OF_SENSORS];
 
 void rf_setup()
@@ -177,7 +177,8 @@ int midiInData2Expected = false;
 void loop() {
   digitalWrite(LED_BUILTIN, HIGH);   // turn the LED on (HIGH is the voltage level)
 #if defined(__AVR_ATmega1280__) || defined(__AVR_ATmega2560__)
-//Code in here will only be compiled if an Arduino Mega is used.
+  /* Call Range Finder Loop */
+  rf_loop();
 #endif
   if (currentNote >= 93)
   {
@@ -225,8 +226,6 @@ void loop() {
       }
     }
   }
-  /* Call Range Finder Loop */
-  rf_loop();
 #endif
   previousNote = currentNote;
   //Serial.println('.');

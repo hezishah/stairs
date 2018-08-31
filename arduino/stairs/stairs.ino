@@ -3,6 +3,123 @@
 #include <midi_Message.h>
 #include <midi_Namespace.h>
 #include <midi_Settings.h>
+
+#include <Wire.h>
+#include <VL53L0X.h>
+
+#if defined(__AVR_ATmega1280__) || defined(__AVR_ATmega2560__)
+//#define XSHUT_pin11 not required for address change
+#define XSHUT_pin10 49
+#define XSHUT_pin9 47
+#define XSHUT_pin8 45
+#define XSHUT_pin7 43
+#define XSHUT_pin6 41
+#define XSHUT_pin5 39
+#define XSHUT_pin4 37
+#define XSHUT_pin3 35
+#define XSHUT_pin2 33
+#define XSHUT_pin1 31
+
+const int xshutPin[] = {
+  -1,
+  31,
+  33,
+  35,
+  37,
+  39,
+  41,
+  43,
+  45,
+  47,
+  49
+};
+
+//ADDRESS_DEFAULT 0b0101001 or 41
+
+const int sensorNewAddress[] = {
+  51,
+  50,
+  49,
+  48,
+  47,
+  46,
+  45,
+  44,
+  43,
+  42,
+  41
+};
+
+#define NUM_OF_SENSORS 11 /* MAX for now is 11 */
+VL53L0X Sensors[NUM_OF_SENSORS];
+
+void rf_setup()
+{ /*WARNING*/
+  Wire.begin();
+  for(int i=0;i<NUM_OF_SENSORS;i++)
+  {
+    //Shutdown pins of VL53L0X ACTIVE-LOW-ONLY NO TOLERANT TO 5V will fry them
+    if(xshutPin[i]>0)
+    {
+      pinMode(xshutPin[i], OUTPUT);
+      digitalWrite(xshutPin[i], 0);
+    }
+  }
+  for(int i=0;i<NUM_OF_SENSORS;i++)
+  {
+    //Shutdown pins of VL53L0X ACTIVE-LOW-ONLY NO TOLERANT TO 5V will fry them
+    if(xshutPin[i]>0)
+    {
+      pinMode(xshutPin[i], INPUT);
+      delay(10); //For power-up procedure t-boot max 1.2ms "Datasheet: 2.9 Power sequence"
+      //Change address of sensor and power up next one
+    }
+    Sensors[i].setAddress(sensorNewAddress[i]);
+    Sensors[i].init();
+    Sensors[i].setTimeout(500);
+#define LONG_RANGE
+#if defined LONG_RANGE
+    // lower the return signal rate limit (default is 0.25 MCPS)
+    Sensors[i].setSignalRateLimit(0.1);
+    // increase laser pulse periods (defaults are 14 and 10 PCLKs)
+    Sensors[i].setVcselPulsePeriod(VL53L0X::VcselPeriodPreRange, 18);
+    Sensors[i].setVcselPulsePeriod(VL53L0X::VcselPeriodFinalRange, 14);
+#endif
+    Sensors[i].startContinuous();
+  }
+}
+
+static uint16_t lastReading[NUM_OF_SENSORS] = {0};
+
+#define DISTANCE_TO_STAIRS 1850
+void rf_loop()
+{
+  for(int i=0;i<NUM_OF_SENSORS;i++)
+  {
+    uint16_t reading = Sensors[i].readRangeContinuousMillimeters();
+    if(i>0)
+    {
+      Serial.print(',');
+    }
+    if(reading > DISTANCE_TO_STAIRS) 
+    {
+      reading = DISTANCE_TO_STAIRS;
+    }
+    if(reading == 0)
+    {
+      reading =  lastReading[i];
+    }
+    Serial.print(reading);
+    //Shutdown pins of VL53L0X ACTIVE-LOW-ONLY NO TOLERANT TO 5V will fry them
+    if(reading != 0)
+    {
+      lastReading[i] = reading;
+    }
+  }
+  Serial.println("");
+}
+
+#endif
 /*
   Blink
 1
@@ -49,8 +166,11 @@ void setup() {
   Serial.begin(2000000);
   /* This port will receive sensor data from the small arduino board */
   Serial2.begin(31250);
+  /*Call Range Finder Setup Function */
+  rf_setup();
 #endif
   MIDI.begin();
+
 }
 
 int currentNote=52, previousNote=0;
@@ -58,26 +178,65 @@ char midiMessage[10];
 int midiInData1Expected = false;
 int midiInData2Expected = false;
 
+unsigned int notePitches[NUM_OF_SENSORS] = { 0 };
+unsigned long noteTS[NUM_OF_SENSORS] = { 0 };
+unsigned int lastNoteReading[NUM_OF_SENSORS] = { 0 };
+#define NOTE_DURATION 300
+
+unsigned int scalePitches[] = { 0, 2, 3, 5, 7, 8, 10, 12, 14, 13, 15 };
+
 // the loop function runs over and over again forever
 void loop() {
   digitalWrite(LED_BUILTIN, HIGH);   // turn the LED on (HIGH is the voltage level)
-  delay(100);                       // wait for a second
-  digitalWrite(LED_BUILTIN, LOW);    // turn the LED off by making the voltage LOW
-  delay(100);                       // wait for a second
 #if defined(__AVR_ATmega1280__) || defined(__AVR_ATmega2560__)
-//Code in here will only be compiled if an Arduino Mega is used.
+  /* Call Range Finder Loop */
+  rf_loop();
 #endif
+  unsigned long mil = millis();
+  for(int i=0;i<NUM_OF_SENSORS;i++)
+  {
+    if(notePitches[i]>0)
+    {
+      unsigned int dur = mil - noteTS[i];
+      if(dur > NOTE_DURATION)
+      {
+          MIDI.sendNoteOff(notePitches[i], 0, 1);  // Turn the note off.
+          notePitches[i] = 0;
+      }
+    }
+    else
+    {
+      if(lastReading[i] < DISTANCE_TO_STAIRS)
+      {
+        int quantizedReading = lastReading[i] / (DISTANCE_TO_STAIRS/3);
+        {
+          quantizedReading-=1;
+          if(quantizedReading != lastNoteReading[i])
+          {
+              lastNoteReading[i] = quantizedReading;
+              notePitches[i] = 48 + quantizedReading + scalePitches[i];
+              MIDI.sendNoteOn(notePitches[i], velocity, 1);  // Turn the note on.
+              noteTS[i] = mil;
+          }
+        }
+      }
+      else
+      {
+        lastNoteReading[i] = 4; /*Just give it a unique value*/ 
+      }
+    }
+  }
   if (currentNote >= 93)
   {
     currentNote = 52;
   }
   currentNote++;
-  MIDI.sendNoteOn(currentNote, velocity, channel);  // Turn the note on.
-  MIDI.sendNoteOff(previousNote, 0, channel);  // Turn the note on.
+  //MIDI.sendNoteOn(currentNote, velocity, channel);  // Turn the note on.
+  //MIDI.sendNoteOff(previousNote, 0, channel);  // Turn the note off.
 
 #if defined(__AVR_ATmega1280__) || defined(__AVR_ATmega2560__)
 //Code in here will only be compiled if an Arduino Mega is used.
-  while (Serial2.available())  
+  while (Serial2.available())
   {
     unsigned char c = Serial2.read();  //gets one byte from serial buffer
     if(c & 0x80)
@@ -116,6 +275,7 @@ void loop() {
 #endif
   previousNote = currentNote;
   //Serial.println('.');
+  digitalWrite(LED_BUILTIN, LOW);    // turn the LED off by making the voltage LOW
 }
 
 
