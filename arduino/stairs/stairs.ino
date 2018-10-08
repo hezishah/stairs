@@ -92,31 +92,36 @@ void rf_setup()
 static uint16_t lastReading[NUM_OF_SENSORS] = {0};
 
 #define DISTANCE_TO_STAIRS 1850
+#define NOISE_MARGIN 150
 void rf_loop()
 {
   for(int i=0;i<NUM_OF_SENSORS;i++)
   {
     uint16_t reading = Sensors[i].readRangeContinuousMillimeters();
-    if(i>0)
+    if(Serial)
     {
-      Serial.print(',');
-    }
-    if(reading > DISTANCE_TO_STAIRS) 
-    {
-      reading = DISTANCE_TO_STAIRS;
-    }
-    if(reading == 0)
-    {
-      reading =  lastReading[i];
-    }
-    Serial.print(reading);
-    //Shutdown pins of VL53L0X ACTIVE-LOW-ONLY NO TOLERANT TO 5V will fry them
-    if(reading != 0)
-    {
-      lastReading[i] = reading;
+      if(i>0)
+      {
+        Serial.print(',');
+      }
+      if(reading > DISTANCE_TO_STAIRS) 
+      {
+        reading = DISTANCE_TO_STAIRS;
+      }
+      if(reading == 0)
+      {
+        reading =  lastReading[i];
+      }
+      Serial.print(reading);
+      //Shutdown pins of VL53L0X ACTIVE-LOW-ONLY NO TOLERANT TO 5V will fry them
+      if(reading != 0)
+      {
+        lastReading[i] = reading;
+      }
     }
   }
-  Serial.println("");
+  if(Serial)
+    Serial.println("");
 }
 
 #endif
@@ -206,7 +211,7 @@ void loop() {
     }
     else
     {
-      if(lastReading[i] < DISTANCE_TO_STAIRS)
+      if(lastReading[i] < (DISTANCE_TO_STAIRS - NOISE_MARGIN ))
       {
         int quantizedReading = lastReading[i] / (DISTANCE_TO_STAIRS/3);
         {
@@ -214,7 +219,8 @@ void loop() {
           if(quantizedReading != lastNoteReading[i])
           {
               lastNoteReading[i] = quantizedReading;
-              notePitches[i] = 48 + quantizedReading + scalePitches[i];
+              /*For now, do not use the quantized value of the actual distance from the sensor*/
+              notePitches[i] = 48 /*+ quantizedReading*/ + scalePitches[i];
               MIDI.sendNoteOn(notePitches[i], velocity, 1);  // Turn the note on.
               noteTS[i] = mil;
           }
